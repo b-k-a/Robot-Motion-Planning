@@ -49,18 +49,6 @@ The main loop in `run_simulation` does, for each time step:
 
 Routing is handled by the `Robot.compute_path` method:
 
-- The method calls `nx.shortest_path` on `grid_graph` from the robot’s current position `self.pos` to its goal `self.goal`, using the edge attribute `weight` as the cost.
-- Because `build_grid_graph` assigns weight 1 to every edge, the search is effectively Dijkstra’s algorithm on an unweighted grid; NetworkX chooses the path with the minimum number of steps.
-- If no path exists, it catches `NetworkXNoPath` and sets `self.path` to an empty list.
-
-Movement logic in `Robot.step` uses that path:
-
-- If the robot is already finished or chosen to “stick” this time step, it does nothing.
-- If the robot has reached its goal, it sets `finished` and stops moving.
-- If `self.path` is `None` or the current position is not in the stored path, it calls `compute_path` to recompute a route from its current location to the goal.
-- If the path exists and has at least two nodes, `self.path[1]` is the next grid cell to move into.
-- Before moving, it checks the traffic light associated with that cell via `intersection_control[ny_, nx_]`:
-  - If there is a light and it is not green, the robot waits and does not advance.
-  - Otherwise, it updates `self.pos` to the next cell and discards the first element of the path so the remaining list always represents the future route.
-
-This design effectively does centralized shortest‑path routing on the grid while enforcing traffic lights, but each robot plans independently of the others.
+- Robots look within a fixed radius to see if other robots are surrounding them within that radius
+- If there are no robots, action is determined by Dijkstra's shortest path algorithm
+- If there are robots, it uses a game theory approach to determine the individual best response
