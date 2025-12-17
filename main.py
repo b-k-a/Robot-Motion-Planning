@@ -19,6 +19,7 @@ NUM_STEPS = 10000
 USE_FILE_DATA = True
 MIN_GREEN = 20
 MAX_GREEN = 60
+NEIGHBOR_RADIUS = 5
 
 
 class McapLogger:
@@ -156,6 +157,31 @@ class Robot:
         phase = (light.timer + t) % cycle
         return (phase < light.green_time) if light.green else (phase >= light.green_time)
         
+    def game_theory_decision(self, grid, other_agents):
+        action_space = self.sample_continuous_actions(100)
+        others = self.get_visible_surroundings(all_agents)
+        
+        predictions = self.predict(others)
+        
+        self_action = random.choice(action_space)
+        other_action = [random.choice(action_space) for _ in others]
+        
+        for _ in range(max_iter):
+            best_self = max(action_space, key=lambda a: self.compute_utility(self, a, others))
+            all_interacting = others + [self]
+
+            best_other = [max(action_space, key=lambda a: self.compute_utility(current, a, [other for other in all_interacting if other != current])) for current in others]
+            
+            if best_self == self_action and best_other == other_action:
+                break
+                
+            self_action = best_self
+            other_action = best_other
+            
+        best_move = self_action
+        print(best_move)
+        return 0
+        
     def step(self, t, reservation_table):
         if self.finished:
             return
@@ -167,6 +193,41 @@ class Robot:
         if self.pos == self.goal:
             self.finished = True
             return
+            
+        nearby_robots = []
+        for robot in robots:
+            if robot.robot_id == self.robot_id or robot.finished:
+                continue
+                
+            rx, ry = robot.pos
+            if (rx - self.pos[0])**2 + (ry - self.pos[1])**2 <= NEIGHBOR_RADIUS**2:
+                nearby_robots.append(robot)
+                
+        if nearby_robots:
+            action = game_theory_decision(self, self.grid, nearby_robots)
+            
+            if action is not None:
+                # Interpret action as next cell (nx, ny)
+                # If your function returns a direction (dx, dy), adapt this line.
+                nx_, ny_ = action
+
+                # Bounds and road check
+                h, w = self.grid.shape
+                if not (0 <= nx_ < w and 0 <= ny_ < h):
+                    return
+                if self.grid[ny_, nx_] not in (1, 2):
+                    return
+
+                # Traffic light check
+                light = self.intersection_control[ny_, nx_]
+                if light is not None and not light.green:
+                    return
+
+                # Move according to game-theoretic action
+                self.pos = (nx_, ny_)
+                # Discard path so it will be recomputed next time
+                self.path = None
+                return
 
         # Compute path if needed
         if self.path is None or self.pos not in self.path or len(self.path) < 2:
@@ -450,7 +511,7 @@ def run_simulation(grid, traffic_lights, robots):
             display_grid = render_scene(grid, traffic_lights, robots)
         
             plt.imshow(display_grid, origin="lower")
-            #plt.pause(0.01)
+            plt.pause(0.01)
             plt.clf()
     
 
