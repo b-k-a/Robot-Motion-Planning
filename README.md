@@ -52,3 +52,4 @@ Routing is handled by the `Robot.compute_path` method:
 - Robots look within a fixed radius to see if other robots are surrounding them within that radius
 - If there are no robots, action is determined by Dijkstra's shortest path algorithm
 - If there are robots, it uses a game theory approach to determine the individual best response
+- This algorithm is based on my published work "Situational Awareness for Safe and Robust Multi-Agent Interactions Under Uncertainty"
