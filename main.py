@@ -157,32 +157,54 @@ class Robot:
         phase = (light.timer + t) % cycle
         return (phase < light.green_time) if light.green else (phase >= light.green_time)
         
-    def game_theory_decision(self, grid, other_agents):
-        action_space = self.sample_continuous_actions(100)
-        others = self.get_visible_surroundings(all_agents)
-        
-        predictions = self.predict(others)
-        
-        self_action = random.choice(action_space)
-        other_action = [random.choice(action_space) for _ in others]
-        
-        for _ in range(max_iter):
-            best_self = max(action_space, key=lambda a: self.compute_utility(self, a, others))
-            all_interacting = others + [self]
+    def game_theory_decision(self, nearby_robots):
+        x, y = self.pos
+        gx, gy = self.goal
+        h, w = self.grid.shape
 
-            best_other = [max(action_space, key=lambda a: self.compute_utility(current, a, [other for other in all_interacting if other != current])) for current in others]
-            
-            if best_self == self_action and best_other == other_action:
-                break
-                
-            self_action = best_self
-            other_action = best_other
-            
-        best_move = self_action
-        print(best_move)
-        return 0
+        moves = [(0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)]
+
+        other_positions = [(r.pos[0], r.pos[1]) for r in nearby_robots]
+
+        best_score = None
+        best_move = None
+
+        for dx, dy in moves:
+            nx_, ny_ = x + dx, y + dy
+
+            if not (0 <= nx_ < w and 0 <= ny_ < h):
+                continue
+
+            if self.grid[ny_, nx_] not in (1, 2):
+                continue
+
+            if (dx, dy) != (0, 0):
+                light = self.intersection_control[ny_, nx_]
+                if light is not None and not light.green:
+                    continue
+
+            dist_to_goal = abs(nx_ - gx) + abs(ny_ - gy)
+            repulsion = 0.0
+            for ox, oy in other_positions:
+                d2 = (nx_ - ox) ** 2 + (ny_ - oy) ** 2
+                if d2 == 0:
+                    repulsion += 1e6
+                else:
+                    repulsion += 1.0 / d2
+
+            dist_weight = 1.0
+            repulsion_weight = 5.0
+            cost = dist_weight * dist_to_goal + repulsion_weight * repulsion
+
+            score = -cost
+
+            if best_score is None or score > best_score:
+                best_score = score
+                best_move = (nx_, ny_)
+
+        return best_move
         
-    def step(self, t, reservation_table):
+    def step(self, t, reservation_table, robots):
         if self.finished:
             return
 
@@ -204,7 +226,7 @@ class Robot:
                 nearby_robots.append(robot)
                 
         if nearby_robots:
-            action = game_theory_decision(self, self.grid, nearby_robots)
+            action = self.game_theory_decision(nearby_robots)
             
             if action is not None:
                 # Interpret action as next cell (nx, ny)
@@ -493,7 +515,7 @@ def run_simulation(grid, traffic_lights, robots):
             
             for robot in robots:
                 robot.intersection_control = intersection_control
-                robot.step(step, reservation_table)
+                robot.step(step, reservation_table, robots)
                 
             mcap_logger.log_step(step, robots)
                 
